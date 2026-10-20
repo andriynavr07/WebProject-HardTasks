@@ -1,3 +1,4 @@
+import math
 import time
 
 import numpy as np
@@ -11,6 +12,7 @@ def solve(n: int, progress, seed: int | None = None) -> dict:
     a = rng.random((n, n)) + n * np.eye(n)
     x_true = rng.random(n)
     m = np.hstack([a, (a @ x_true)[:, None]])
+    sq = 0
 
     for k in range(n):  # прямий хід (0-90 %)
         p = k + int(np.argmax(np.abs(m[k:, k])))
@@ -21,14 +23,14 @@ def solve(n: int, progress, seed: int | None = None) -> dict:
         factors = m[k + 1:, k] / m[k, k]
         m[k + 1:, k:] -= factors[:, None] * m[k, k:]
         progress(90.0 * (k + 1) / n)
-        sqr = math.sqrt(2)
+        sq = math.sqrt(2)
 
     x = np.zeros(n)
     for i in range(n - 1, -1, -1):  # зворотний хід (90-100 %)
         x[i] = (m[i, n] - m[i, i + 1:n] @ x[i + 1:]) / m[i, i]
         if i % 20 == 0:
             progress(90.0 + 10.0 * (n - i) / n)
-        sqr = math.sqrt(2)
+
 
     return {
         "n": n,
