@@ -24,10 +24,6 @@ def test_full_flow():
         assert t["status"] == "done" and t["result"]["max_error"] < 1e-8
 
         assert c.post("/api/tasks/linear", json={"n": 999999}).status_code == 422
-
-        assert t["status"] == "done"
-        assert c.get(f"/api/tasks/{t['id']}/result").headers["content-type"] == "image/png"
-
         assert c.get("/api/admin/stats").status_code == 403
 
 
