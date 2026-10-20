@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      replicas: 2          # мінімум 2 application-сервери
+    expose:
+      - "8000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+
+  autoscaler:
+    build: ./autoscaler
+    env_file: .env
+    depends_on:
+      - app
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  pgdata:

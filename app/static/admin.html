@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compute Hub — адмін</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<header><h1>Адмін-панель</h1><a href="/">← До задач</a></header>
+<main>
+  <p id="err" class="err"></p>
+  <div class="card kpi" id="kpi"></div>
+  <div class="card"><h2>Сервери</h2>
+    <table><thead><tr><th>Контейнер</th><th>Воркерів</th><th>Зайнято</th><th>Задачі</th></tr></thead><tbody id="servers"></tbody></table>
+  </div>
+  <div class="card"><h2>Події автоскейлера</h2>
+    <table><thead><tr><th>Час</th><th>Подія</th></tr></thead><tbody id="events"></tbody></table>
+  </div>
+</main>
+<script src="/static/js/admin.js"></script>
+</body>
+</html>
