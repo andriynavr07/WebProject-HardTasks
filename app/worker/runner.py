@@ -5,7 +5,6 @@ import time
 
 from ..config import settings
 from ..services import queue
-from .tasks.image_filter import apply_filter
 from .tasks.linear_system import solve
 
 log = logging.getLogger("worker")
@@ -32,10 +31,6 @@ def execute(info: dict, worker_id: str) -> None:
     try:
         if info["type"] == "linear":
             queue.finish(tid, "done", result=solve(int(params["n"]), progress))
-        elif info["type"] == "image":
-            png = apply_filter(queue.load_input(tid), params["filter"], int(params["kernel"]),
-                               int(params["passes"]), progress)
-            queue.finish(tid, "done", result={"bytes": len(png)}, blob=png)
         else:
             raise ValueError(f"Невідомий тип задачі: {info['type']}")
     except Cancelled:

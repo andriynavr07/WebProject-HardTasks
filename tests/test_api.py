@@ -1,9 +1,6 @@
-import io
 import time
 
 from fastapi.testclient import TestClient
-from PIL import Image
-
 from app.main import app
 
 
@@ -28,11 +25,6 @@ def test_full_flow():
 
         assert c.post("/api/tasks/linear", json={"n": 999999}).status_code == 422
 
-        buf = io.BytesIO()
-        Image.new("RGB", (50, 50), "red").save(buf, "PNG")
-        r = c.post("/api/tasks/image", files={"file": ("a.png", buf.getvalue(), "image/png")},
-                   data={"filter": "blur", "kernel": "5", "passes": "1"})
-        t = wait_done(c, r.json()["id"])
         assert t["status"] == "done"
         assert c.get(f"/api/tasks/{t['id']}/result").headers["content-type"] == "image/png"
 

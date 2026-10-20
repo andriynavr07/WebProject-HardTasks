@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Compute Hub</title>
+  <title>HardTasks</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 <header>
-  <h1>Compute Hub</h1>
+  <h1>HardTasks</h1>
   <div id="userbox"></div>
 </header>
 <main>
@@ -25,18 +25,9 @@
     <div class="grid">
       <div class="card">
         <h2>СЛАР (метод Гауса)</h2>
-        <label>Розмір системи n (2–1500)</label>
+        <label>Розмір системи n (2–100000)</label>
         <input id="lin-n" type="number" value="500" min="2" max="100000">
         <button id="lin-go">Запустити</button>
-      </div>
-      <div class="card">
-        <h2>Обробка зображення</h2>
-        <label>Файл (до 5 МБ, до 4 МП)</label><input id="img-file" type="file" accept="image/*">
-        <label>Фільтр</label>
-        <select id="img-filter"><option value="blur">Розмиття</option><option value="sharpen">Різкість</option><option value="edges">Контури</option></select>
-        <label>Розмір ядра (для розмиття, непарне 3–21)</label><input id="img-kernel" type="number" value="9" min="3" max="21" step="2">
-        <label>Кількість проходів (1–5)</label><input id="img-passes" type="number" value="1" min="1" max="5">
-        <button id="img-go">Запустити</button>
       </div>
     </div>
     <p id="err" class="err"></p>

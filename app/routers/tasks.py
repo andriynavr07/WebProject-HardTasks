@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, undefer
 
@@ -44,20 +44,6 @@ def create_linear(body: LinearIn, db: Session = Depends(get_db), user: User = De
     return {"id": t.id}
 
 
-@router.post("/image")
-async def create_image(file: UploadFile = File(...), filter: str = Form("blur"), kernel: int = Form(5),
-                       passes: int = Form(1), db: Session = Depends(get_db), user: User = Depends(current_user)):
-    limits.check_active_limit(db, user.id)
-    data = await file.read(settings.max_upload_bytes + 1)
-    limits.check_image(data, kernel, passes, filter)
-    t = Task(user_id=user.id, type="image", params={"filter": filter, "kernel": kernel, "passes": passes,
-                                                    "filename": (file.filename or "image")[:80]},
-             input_blob=data)
-    db.add(t)
-    db.commit()
-    return {"id": t.id}
-
-
 @router.get("")
 def list_tasks(db: Session = Depends(get_db), user: User = Depends(current_user)):
     rows = db.scalars(select(Task).where(Task.user_id == user.id).order_by(Task.id.desc()).limit(50)).all()
@@ -88,7 +74,4 @@ def result(task_id: int, db: Session = Depends(get_db), user: User = Depends(cur
     t = _own_task(db, task_id, user, with_result=True)
     if t.status != "done":
         raise HTTPException(409, "Результат ще не готовий")
-    if t.type == "image":
-        return Response(t.result_blob, media_type="image/png",
-                        headers={"Content-Disposition": f'inline; filename="result-{t.id}.png"'})
     return t.result
