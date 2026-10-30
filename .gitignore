@@ -6,3 +6,5 @@ venv/
 .env
 *.db
 nginx/certs/*.pem
+mkcert.exe
+*.pem
