@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Самопідписаний сертифікат для локального HTTPS
 set -e
+export MSYS_NO_PATHCONV=1
 cd "$(dirname "$0")/.."
 mkdir -p nginx/certs
 openssl req -x509 -nodes -newkey rsa:2048 -days 365 \

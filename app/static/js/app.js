@@ -53,9 +53,15 @@ async function auth(kind) {
   } catch (e) { $("auth-err").textContent = e.status === 422 ? "Логін: 3–32 символи (літери/цифри), пароль: 6–72" : e.message; }
 }
 
+function fmtSec(x) {
+  x = Math.ceil(x);
+  return x >= 60 ? Math.floor(x / 60) + " хв " + (x % 60) + " с" : x + " с";
+}
+
 function fmtEta(t) {
-  if (t.status !== "queued") return "";
-  return t.eta_seconds === 0 ? "зараз" : "~" + Math.ceil(t.eta_seconds) + " с";
+  if (t.status === "queued" && t.eta_seconds != null) return t.eta_seconds === 0 ? "зараз" : "старт через ~" + fmtSec(t.eta_seconds);
+  if (t.status === "running" && t.remaining_seconds != null) return "залишилось ~" + fmtSec(t.remaining_seconds);
+  return "";
 }
 
 function summary(t) {
@@ -72,7 +78,7 @@ async function refresh() {
     for (const t of tasks) {
       const tr = document.createElement("tr");
       const name = t.type === "linear" ? `СЛАР n=${t.params.n}` : "";
-      tr.innerHTML = `<td>${t.id}</td><td></td><td class="st-${t.status}">${t.status}</td>
+      tr.innerHTML = `<td>${t.id}</td><td></td><td class="st-${t.status}">${t.status === "queued" && t.scaling ? "queued · Scale up" : t.status}</td>
         <td><span class="bar"><div style="width:${t.progress}%"></div></span> ${Math.round(t.progress)}%</td>
         <td>${fmtEta(t)}</td><td>${t.worker ? t.worker.split("-").slice(0, -1).join("-").slice(0, 12) : ""}</td><td></td>`;
       tr.children[1].textContent = name + summary(t);

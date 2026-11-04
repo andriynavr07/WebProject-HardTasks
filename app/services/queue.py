@@ -1,4 +1,5 @@
-from datetime import timedelta
+import heapq
+from datetime import timedelta, timezone
 
 from sqlalchemy import func, select, update
 
@@ -7,7 +8,7 @@ from ..models import Task, Worker, utcnow
 
 ALIVE_SECONDS = 15
 ORPHAN_SECONDS = 30
-DEFAULT_AVG = 15.0
+DEFAULT_K = 1.5e-9
 
 
 def heartbeat(worker_id: str, hostname: str, task_id: int | None) -> None:
@@ -22,8 +23,6 @@ def heartbeat(worker_id: str, hostname: str, task_id: int | None) -> None:
 
 
 def claim_task(worker_id: str) -> dict | None:
-    """Атомарно бере першу задачу з черги. SKIP LOCKED гарантує, що
-    два сервери не візьмуть одну й ту саму задачу."""
     with SessionLocal() as db:
         t = db.execute(
             select(Task).where(Task.status == "queued").order_by(Task.id).limit(1).with_for_update(skip_locked=True)
@@ -40,7 +39,6 @@ def claim_task(worker_id: str) -> dict | None:
 
 
 def report_progress(task_id: int, progress: float) -> bool:
-    """Оновлює прогрес і повертає True, якщо користувач попросив скасувати."""
     with SessionLocal() as db:
         row = db.execute(
             update(Task).where(Task.id == task_id).values(progress=round(progress, 1)).returning(Task.cancel_requested)
@@ -49,13 +47,7 @@ def report_progress(task_id: int, progress: float) -> bool:
         return bool(row and row[0])
 
 
-def load_input(task_id: int) -> bytes:
-    with SessionLocal() as db:
-        return db.execute(select(Task.input_blob).where(Task.id == task_id)).scalar_one()
-
-
-def finish(task_id: int, status: str, result: dict | None = None, blob: bytes | None = None,
-           error: str | None = None) -> None:
+def finish(task_id: int, status: str, result: dict | None = None, error: str | None = None) -> None:
     with SessionLocal() as db:
         t = db.get(Task, task_id)
         t.status = status
@@ -63,14 +55,11 @@ def finish(task_id: int, status: str, result: dict | None = None, blob: bytes | 
         if status == "done":
             t.progress = 100.0
         t.result = result
-        t.result_blob = blob
         t.error = error
         db.commit()
 
 
 def requeue_orphans() -> None:
-    """Задачі, чий воркер перестав слати heartbeat (контейнер зупинено/впав),
-    повертаються в чергу."""
     cutoff = utcnow() - timedelta(seconds=ORPHAN_SECONDS)
     with SessionLocal() as db:
         alive = set(db.scalars(select(Worker.id).where(Worker.last_heartbeat > cutoff)))
@@ -85,26 +74,41 @@ def requeue_orphans() -> None:
         db.commit()
 
 
-def eta_context(db) -> dict:
+def _ts(dt) -> float:
+    return (dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt).timestamp()
+
+
+def compute_eta(db) -> dict:
+    now = utcnow().timestamp()
     cutoff = utcnow() - timedelta(seconds=ALIVE_SECONDS)
-    slots = db.scalar(select(func.count()).select_from(Worker).where(Worker.last_heartbeat > cutoff)) or 0
-    busy = db.scalar(select(func.count()).select_from(Task).where(Task.status == "running")) or 0
+    slots = max(1, db.scalar(select(func.count()).select_from(Worker).where(Worker.last_heartbeat > cutoff)) or 0)
+
     rows = db.execute(
-        select(Task.started_at, Task.finished_at).where(Task.status == "done", Task.started_at.is_not(None))
+        select(Task.params, Task.started_at, Task.finished_at)
+        .where(Task.status == "done", Task.type == "linear", Task.started_at.is_not(None))
         .order_by(Task.id.desc()).limit(30)
     ).all()
-    durs = [(f.replace(tzinfo=None) - s.replace(tzinfo=None)).total_seconds() for s, f in rows if s and f]
-    avg = sum(durs) / len(durs) if durs else DEFAULT_AVG
-    return {"slots": max(1, slots), "busy": busy, "avg": max(avg, 0.5)}
+    ks = sorted(
+        (_ts(f) - _ts(s)) / int(p["n"]) ** 3
+        for p, s, f in rows if p and p.get("n") and s and f and _ts(f) > _ts(s)
+    )
+    k = ks[len(ks) // 2] if ks else DEFAULT_K
 
+    def est(t: Task) -> float:
+        return k * int((t.params or {}).get("n", 1000)) ** 3
 
-def estimate_wait(db, task: Task, ctx: dict) -> float | None:
-    """Орієнтовний час до старту задачі (с). Задачі, що зараз виконуються,
-    в середньому вже наполовину готові."""
-    if task.status != "queued":
-        return None
-    ahead = db.scalar(select(func.count()).select_from(Task).where(Task.status == "queued", Task.id < task.id)) or 0
-    free = max(0, ctx["slots"] - ctx["busy"])
-    if ahead < free:
-        return 0.0
-    return round(ctx["avg"] * ((ahead - free) / ctx["slots"] + 0.5), 1)
+    remaining, free_at = {}, []
+    for t in db.scalars(select(Task).where(Task.status == "running")):
+        elapsed = now - _ts(t.started_at) if t.started_at else 0.0
+        rem = max(est(t) - elapsed, 1.0)
+        remaining[t.id] = round(rem, 1)
+        free_at.append(rem)
+    free_at += [0.0] * max(0, slots - len(free_at))
+    heapq.heapify(free_at)
+
+    wait = {}
+    for t in db.scalars(select(Task).where(Task.status == "queued").order_by(Task.id)):
+        start = heapq.heappop(free_at)
+        wait[t.id] = round(start, 1)
+        heapq.heappush(free_at, start + est(t))
+    return {"wait": wait, "remaining": remaining}

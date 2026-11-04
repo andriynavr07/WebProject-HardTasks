@@ -1,12 +1,11 @@
-"""API-тести на Playwright (APIRequestContext).
-
+"""API-тести на Playwright
 Запуск:
-    pip install playwright pytest
     python -m pytest e2e -v
 
 Змінні середовища :
     BASE_URL=https://localhost   ADMIN_USERNAME=admin   ADMIN_PASSWORD=admin1234
     EXPECT_MIN_SERVERS=2
+    MAX_ACTIVE=3
     HEAVY_N=1500
 """
 import os
@@ -21,6 +20,7 @@ ADMIN_USER = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASSWORD", "admin1234")
 EXPECT_MIN_SERVERS = int(os.getenv("EXPECT_MIN_SERVERS", "2"))
 PASSWORD = "secret123"
+MAX_ACTIVE = int(os.getenv("MAX_ACTIVE", "3"))  # ліміт активних задач на користувача
 HEAVY_N = int(os.getenv("HEAVY_N", "1500"))  # "важка" задача; не більше за ліміт сервера
 
 
@@ -193,7 +193,7 @@ def test_active_tasks_limit(user):
     c, _ = user
     ids = []
     try:
-        for _ in range(3):
+        for _ in range(MAX_ACTIVE):
             r = c.post("/api/tasks/linear", data={"n": HEAVY_N})
             assert r.status == 200, r.text()
             ids.append(r.json()["id"])
