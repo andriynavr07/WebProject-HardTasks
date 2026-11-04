@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     worker_threads: int = 1
 
     max_linear_n: int = 10000
-    max_active_per_user: int = 3
+    max_active_per_user: int = 6
 
 
 settings = Settings()
