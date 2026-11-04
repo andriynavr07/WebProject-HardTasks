@@ -7,10 +7,10 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import insert, select, text
+from sqlalchemy import insert, select, text, update
 
-from . import models  # noqa: F401  (реєстрація моделей)
-from .auth import hash_password
+from . import models
+from .auth import hash_password, verify_password
 from .config import settings
 from .db import Base, engine
 from .models import User
@@ -25,23 +25,25 @@ HOST = socket.gethostname()
 
 
 def init_db() -> None:
-    """Створює таблиці й адміна. Advisory lock захищає від гонки,
-    коли кілька контейнерів стартують одночасно."""
     for attempt in range(40):
         try:
             with engine.begin() as conn:
                 if engine.dialect.name == "postgresql":
                     conn.execute(text("SELECT pg_advisory_xact_lock(727272)"))
                 Base.metadata.create_all(conn)
-                exists = conn.execute(select(User.id).where(User.username == settings.admin_username)).first()
-                if exists is None:
+                row = conn.execute(select(User.id, User.password_hash).where(User.username == settings.admin_username)).first()
+                if row is None:
                     conn.execute(insert(User).values(
                         username=settings.admin_username,
                         password_hash=hash_password(settings.admin_password),
                         is_admin=True,
                     ))
+                elif not verify_password(settings.admin_password, row.password_hash):
+
+                    conn.execute(update(User).where(User.id == row.id).values(
+                        password_hash=hash_password(settings.admin_password), is_admin=True))
             return
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logging.warning("DB not ready (%s): %s", attempt, e)
             time.sleep(1.5)
     raise RuntimeError("База даних недоступна")
@@ -55,13 +57,13 @@ async def lifespan(app: FastAPI):
     stop.set()
 
 
-app = FastAPI(title="Compute Hub", lifespan=lifespan)
+app = FastAPI(title="HardTasks", lifespan=lifespan)
 
 
 @app.middleware("http")
 async def served_by(request: Request, call_next):
     response = await call_next(request)
-    response.headers["X-Served-By"] = HOST  # видно, який сервер відповів
+    response.headers["X-Served-By"] = HOST
     return response
 
 

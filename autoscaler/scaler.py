@@ -1,9 +1,3 @@
-"""Автоскейлер: стежить за довжиною черги й додає/прибирає контейнери app.
-
-Нові контейнери створюються з того ж образу й середовища, що й сервіс app,
-підключаються до тієї ж мережі з alias "app" - тому nginx підхоплює їх
-автоматично через Docker DNS.
-"""
 import os
 import time
 from datetime import datetime, timezone
@@ -13,8 +7,8 @@ from sqlalchemy import create_engine, text
 
 MIN_APPS = int(os.getenv("MIN_APPS", "2"))
 MAX_APPS = int(os.getenv("MAX_APPS", "5"))
-SCALE_UP_QUEUE = int(os.getenv("SCALE_UP_QUEUE", "3"))    # задач у черзі на один сервер
-SCALE_DOWN_IDLE = int(os.getenv("SCALE_DOWN_IDLE", "60"))  # с простою перед зменшенням
+SCALE_UP_QUEUE = int(os.getenv("SCALE_UP_QUEUE", "1"))
+SCALE_DOWN_IDLE = int(os.getenv("SCALE_DOWN_IDLE", "60"))
 INTERVAL = 10
 COOLDOWN = 25
 EXTRA_LABEL = "hardtasks.autoscaled"
@@ -29,7 +23,7 @@ def log_event(msg: str) -> None:
         with engine.begin() as conn:
             conn.execute(text("INSERT INTO scaler_events (ts, message) VALUES (:ts, :m)"),
                          {"ts": datetime.now(timezone.utc), "m": msg})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print("event log failed:", e, flush=True)
 
 
@@ -54,6 +48,7 @@ def scale_up(template) -> None:
 
 def main() -> None:
     idle_since = None
+    pressure = 0
     print(f"autoscaler: min={MIN_APPS} max={MAX_APPS} up_queue={SCALE_UP_QUEUE} idle={SCALE_DOWN_IDLE}s", flush=True)
     while True:
         time.sleep(INTERVAL)
@@ -64,10 +59,11 @@ def main() -> None:
             base, extra = containers()
             total = len(base) + len(extra)
 
-            if queued > SCALE_UP_QUEUE * total and total < MAX_APPS and base:
+            pressure = pressure + 1 if queued >= SCALE_UP_QUEUE else 0
+            if pressure >= 2 and total < MAX_APPS and base:
                 scale_up(base[0])
                 log_event(f"Scale UP: {total} -> {total + 1} серверів (у черзі {queued})")
-                idle_since = None
+                idle_since, pressure = None, 0
                 time.sleep(COOLDOWN)
             elif queued == 0 and running == 0:
                 idle_since = idle_since or time.monotonic()
@@ -79,7 +75,7 @@ def main() -> None:
                     idle_since = time.monotonic()
             else:
                 idle_since = None
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  
             print("autoscaler error:", e, flush=True)
 
 

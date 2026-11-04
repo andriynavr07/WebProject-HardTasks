@@ -10,13 +10,8 @@ class Settings(BaseSettings):
     token_ttl_hours: int = 12
     worker_threads: int = 1
 
-    # ліміти складності
-    max_linear_n: int = 100000
-    max_pixels: int = 4_000_000
-    max_upload_bytes: int = 5 * 1024 * 1024
-    max_kernel: int = 21
-    max_passes: int = 5
-    max_active_per_user: int = 3
+    max_linear_n: int = 10000
+    max_active_per_user: int = 6
 
 
 settings = Settings()

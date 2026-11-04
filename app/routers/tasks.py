@@ -1,34 +1,44 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session, undefer
+from sqlalchemy.orm import Session
 
 from ..auth import current_user
-from ..config import settings
 from ..db import get_db
-from ..models import Task, User, utcnow
+from ..models import ScalerEvent, Task, User, utcnow
 from ..schemas import LinearIn
 from ..services import limits
-from ..services.queue import estimate_wait, eta_context
+from ..services.queue import compute_eta
 
 router = APIRouter(prefix="/api/tasks")
+
+SCALING_WINDOW = 60  # с: скільки "Scale up" видно після події автоскейлера
 
 
 def _iso(dt):
     return dt.isoformat() if dt else None
 
 
-def serialize(db: Session, t: Task, ctx: dict) -> dict:
+def is_scaling(db: Session) -> bool:
+    since = utcnow() - timedelta(seconds=SCALING_WINDOW)
+    return db.scalar(select(ScalerEvent.id).where(ScalerEvent.message.like("Scale UP%"),
+                                                  ScalerEvent.ts > since).limit(1)) is not None
+
+
+def serialize(t: Task, eta: dict, scaling: bool = False) -> dict:
     return {
         "id": t.id, "type": t.type, "status": t.status, "progress": t.progress, "params": t.params,
         "result": t.result, "error": t.error, "worker": t.worker_id,
         "created_at": _iso(t.created_at), "started_at": _iso(t.started_at), "finished_at": _iso(t.finished_at),
-        "eta_seconds": estimate_wait(db, t, ctx),
+        "eta_seconds": eta["wait"].get(t.id),
+        "remaining_seconds": eta["remaining"].get(t.id),
+        "scaling": scaling and t.status == "queued",
     }
 
 
-def _own_task(db: Session, task_id: int, user: User, with_result: bool = False) -> Task:
-    opts = [undefer(Task.result_blob)] if with_result else []
-    t = db.get(Task, task_id, options=opts)
+def _own_task(db: Session, task_id: int, user: User) -> Task:
+    t = db.get(Task, task_id)
     if t is None or (t.user_id != user.id and not user.is_admin):
         raise HTTPException(404, "Задачу не знайдено")
     return t
@@ -47,13 +57,13 @@ def create_linear(body: LinearIn, db: Session = Depends(get_db), user: User = De
 @router.get("")
 def list_tasks(db: Session = Depends(get_db), user: User = Depends(current_user)):
     rows = db.scalars(select(Task).where(Task.user_id == user.id).order_by(Task.id.desc()).limit(50)).all()
-    ctx = eta_context(db)
-    return [serialize(db, t, ctx) for t in rows]
+    eta, scaling = compute_eta(db), is_scaling(db)
+    return [serialize(t, eta, scaling) for t in rows]
 
 
 @router.get("/{task_id}")
 def get_task(task_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    return serialize(db, _own_task(db, task_id, user), eta_context(db))
+    return serialize(_own_task(db, task_id, user), compute_eta(db), is_scaling(db))
 
 
 @router.post("/{task_id}/cancel")
@@ -71,7 +81,7 @@ def cancel(task_id: int, db: Session = Depends(get_db), user: User = Depends(cur
 
 @router.get("/{task_id}/result")
 def result(task_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    t = _own_task(db, task_id, user, with_result=True)
+    t = _own_task(db, task_id, user)
     if t.status != "done":
         raise HTTPException(409, "Результат ще не готовий")
     return t.result

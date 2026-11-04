@@ -17,7 +17,7 @@ services:
       db:
         condition: service_healthy
     deploy:
-      replicas: 2          # мінімум 2 application-сервери
+      replicas: 2
     expose:
       - "8000"
 
