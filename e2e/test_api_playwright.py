@@ -1,7 +1,6 @@
-"""API-тести на Playwright
+"""API-тести
 Запуск:
     python -m pytest e2e -v
-
 Змінні середовища :
     BASE_URL=https://localhost   ADMIN_USERNAME=admin   ADMIN_PASSWORD=admin1234
     EXPECT_MIN_SERVERS=2
@@ -20,8 +19,8 @@ ADMIN_USER = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASSWORD", "admin1234")
 EXPECT_MIN_SERVERS = int(os.getenv("EXPECT_MIN_SERVERS", "2"))
 PASSWORD = "secret123"
-MAX_ACTIVE = int(os.getenv("MAX_ACTIVE", "3"))  # ліміт активних задач на користувача
-HEAVY_N = int(os.getenv("HEAVY_N", "1500"))  # "важка" задача; не більше за ліміт сервера
+MAX_ACTIVE = int(os.getenv("MAX_ACTIVE", "3"))
+HEAVY_N = int(os.getenv("HEAVY_N", "1500"))
 
 
 @pytest.fixture(scope="session")
@@ -32,7 +31,6 @@ def pw():
 
 @pytest.fixture
 def new_client(pw):
-    """Фабрика незалежних клієнтів (у кожного свої cookie)."""
     contexts = []
 
     def make():
@@ -51,7 +49,6 @@ def unique_name():
 
 @pytest.fixture
 def user(new_client):
-    """Новий зареєстрований користувач."""
     c = new_client()
     name = unique_name()
     r = c.post("/api/register", data={"username": name, "password": PASSWORD})
@@ -75,7 +72,7 @@ def cancel_all(client):
             client.post(f"/api/tasks/{t['id']}/cancel")
 
 
-# ---------- авторизація ----------
+#авторизація
 
 def test_health_has_served_by_header(new_client):
     r = new_client().get("/health")
@@ -89,9 +86,9 @@ def test_tasks_require_auth(new_client):
 
 
 @pytest.mark.parametrize("payload", [
-    {"username": "ab", "password": "secret123"},         # занадто короткий логін
-    {"username": "valid_name", "password": "123"},       # занадто короткий пароль
-    {"username": "bad name!", "password": "secret123"},  # недопустимі символи
+    {"username": "ab", "password": "secret123"},
+    {"username": "valid_name", "password": "123"},
+    {"username": "bad name!", "password": "secret123"},
 ])
 def test_register_validation(new_client, payload):
     assert new_client().post("/api/register", data=payload).status == 422
@@ -124,7 +121,7 @@ def test_logout_clears_session(user):
     assert c.get("/api/me").status == 401
 
 
-# ---------- задачі ----------
+# задачі
 
 def test_linear_task_full_cycle(user):
     c, _ = user
@@ -185,7 +182,6 @@ def test_cancel_task(user):
     r = c.post(f"/api/tasks/{task_id}/cancel")
     assert r.status == 200
     assert wait_status(c, task_id)["status"] == "cancelled"
-    # повторне скасування завершеної задачі
     assert c.post(f"/api/tasks/{task_id}/cancel").status == 409
 
 
@@ -226,7 +222,7 @@ def test_result_not_ready_returns_409(user):
         wait_status(c, task_id)
 
 
-# ---------- адмін-панель ----------
+#адмін-панель
 
 def test_admin_stats_forbidden_for_regular_user(user):
     c, _ = user
@@ -248,7 +244,7 @@ def test_admin_stats_ok(new_client):
     assert len(data["servers"]) >= 1
 
 
-# ---------- балансування навантаження ----------
+#балансування навантаження
 
 def test_load_balancer_uses_multiple_servers(new_client):
     c = new_client()
