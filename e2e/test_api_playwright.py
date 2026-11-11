@@ -1,11 +1,5 @@
-"""API-тести
-Запуск:
+"""
     python -m pytest e2e -v
-Змінні середовища :
-    BASE_URL=https://localhost   ADMIN_USERNAME=admin   ADMIN_PASSWORD=admin1234
-    EXPECT_MIN_SERVERS=2
-    MAX_ACTIVE=3
-    HEAVY_N=1500
 """
 import os
 import time
