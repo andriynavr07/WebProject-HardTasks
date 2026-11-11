@@ -11,7 +11,7 @@
   <h1>HardTasks</h1>
   <div id="userbox"></div>
 </header>
-<main>
+<main class="wide">
   <section id="auth" class="card hidden">
     <h2>Вхід / реєстрація</h2>
     <label>Логін</label><input id="username" autocomplete="username">
@@ -22,21 +22,37 @@
   </section>
 
   <section id="work" class="hidden">
-    <div class="grid">
-      <div class="card">
+    <div class="card form-bar">
+      <div class="form-title">
         <h2>СЛАР (метод Гауса)</h2>
-        <label>Розмір системи n (2–10000)</label>
-        <input id="lin-n" type="number" value="500" min="2" max="10000">
-        <button id="lin-go">Запустити</button>
+        <p>Розв'язання системи лінійних рівнянь із вибором головного елемента</p>
       </div>
+      <div class="form-field">
+        <label for="lin-n">Розмір системи n (2–10000)</label>
+        <input id="lin-n" type="number" value="500" min="2" max="10000">
+      </div>
+      <button id="lin-go">Запустити</button>
     </div>
     <p id="err" class="err"></p>
-    <div class="card">
-      <h2>Мої задачі</h2>
-      <table>
-        <thead><tr><th>#</th><th>Тип</th><th>Статус</th><th>Прогрес</th><th>Очікування</th><th>Сервер</th><th></th></tr></thead>
-        <tbody id="tasks"></tbody>
-      </table>
+
+    <div class="cols">
+      <div class="card">
+        <h2>Мої задачі</h2>
+        <div class="hist-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Тип</th><th>Статус</th><th>Прогрес</th><th>Очікування</th><th>Сервер</th><th></th></tr></thead>
+            <tbody id="tasks"></tbody>
+          </table>
+        </div>
+        <nav id="pager" class="pager" aria-label="Сторінки історії"></nav>
+      </div>
+
+      <div class="card">
+        <h2>Результат розрахунку</h2>
+        <label for="res-pick">Задача</label>
+        <select id="res-pick" disabled></select>
+        <div id="res-body"><p class="res-empty">Поки немає виконаних задач</p></div>
+      </div>
     </div>
   </section>
 </main>

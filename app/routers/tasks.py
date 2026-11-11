@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..auth import current_user
@@ -14,6 +14,8 @@ from ..services.queue import compute_eta
 router = APIRouter(prefix="/api/tasks")
 
 SCALING_WINDOW = 60
+MAX_PER_PAGE = 50
+DONE_LIST_LIMIT = 500
 
 
 def _iso(dt):
@@ -59,6 +61,27 @@ def list_tasks(db: Session = Depends(get_db), user: User = Depends(current_user)
     rows = db.scalars(select(Task).where(Task.user_id == user.id).order_by(Task.id.desc()).limit(50)).all()
     eta, scaling = compute_eta(db), is_scaling(db)
     return [serialize(t, eta, scaling) for t in rows]
+
+
+@router.get("/history")
+def history(page: int = 1, per_page: int = 8, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    per_page = min(max(per_page, 1), MAX_PER_PAGE)
+    total = db.scalar(select(func.count()).select_from(Task).where(Task.user_id == user.id)) or 0
+    pages = max(1, -(-total // per_page))
+    page = min(max(page, 1), pages)
+    rows = db.scalars(select(Task).where(Task.user_id == user.id).order_by(Task.id.desc())
+                      .offset((page - 1) * per_page).limit(per_page)).all()
+    eta, scaling = compute_eta(db), is_scaling(db)
+    return {"items": [serialize(t, eta, scaling) for t in rows], "page": page, "pages": pages, "total": total}
+
+
+@router.get("/done")
+def done_list(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.execute(
+        select(Task.id, Task.params).where(Task.user_id == user.id, Task.status == "done", Task.type == "linear")
+        .order_by(Task.id.desc()).limit(DONE_LIST_LIMIT)
+    ).all()
+    return [{"id": r.id, "n": (r.params or {}).get("n")} for r in rows]
 
 
 @router.get("/{task_id}")

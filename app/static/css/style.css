@@ -22,6 +22,7 @@ header button { margin: 0 0 0 12px; padding: 6px 12px; background: transparent; 
 header button:hover { background: rgba(255, 255, 255, .12); }
 
 main { max-width: 1000px; margin: 28px auto; padding: 0 16px; }
+main.wide { max-width: 1280px; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05); overflow-x: auto; }
 .card h2 { margin: 0 0 12px; font-size: 17px; font-weight: 600; }
 #auth { max-width: 420px; margin: 40px auto; }
@@ -64,3 +65,38 @@ td[class^="st-"] { font-weight: 500; white-space: nowrap; }
 }
 
 td:nth-child(5) { white-space: nowrap; }
+
+.form-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px; padding: 16px 20px; }
+.form-bar .form-title { flex: 1 1 220px; }
+.form-bar h2 { margin: 0; }
+.form-bar p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.form-bar .form-field { flex: 0 0 200px; }
+.form-bar .form-field label { margin-top: 0; }
+.form-bar button { margin: 0; padding: 10px 20px; }
+#work > .err { min-height: 0; margin: 0 0 8px; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+.cols .card { margin-bottom: 0; }
+.cols .bar { width: 70px; }
+@media (max-width: 900px) {
+  .cols { grid-template-columns: 1fr; }
+  .cols .card { margin-bottom: 0; }
+}
+
+#res-body { margin-top: 16px; }
+.res-empty { margin: 0; font-size: 14px; color: var(--muted); }
+.res-kpi div { flex: 1 1 90px; padding: 10px 12px; }
+.res-kpi b { font-size: 18px; margin-top: 2px; }
+.res-sub { margin: 16px 0 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.res-vals td:first-child { color: var(--muted); width: 48px; }
+
+.hist-wrap { min-height: 430px; overflow-x: auto; }
+.hist-wrap td { height: 49px; padding: 6px; white-space: nowrap; }
+.hist-wrap th { padding: 8px 6px; }
+.hist-wrap td:nth-child(2) { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 34px; margin-top: 12px; }
+.pager button { margin: 0; padding: 5px 11px; min-width: 34px; background: transparent; color: var(--text); border: 1px solid var(--border); }
+.pager button:hover:not(:disabled) { background: var(--bg); }
+.pager button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.pager button:disabled { opacity: .45; cursor: default; }
+.pager .gap { color: var(--muted); padding: 0 2px; }
