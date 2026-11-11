@@ -8,7 +8,7 @@ from ..models import Task, Worker, utcnow
 
 ALIVE_SECONDS = 15
 ORPHAN_SECONDS = 30
-DEFAULT_K = 1.5e-9
+DEFAULT_K = 1e-8
 
 
 def heartbeat(worker_id: str, hostname: str, task_id: int | None) -> None:
@@ -78,6 +78,11 @@ def _ts(dt) -> float:
     return (dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt).timestamp()
 
 
+def _time_fraction(progress: float) -> float:
+    f = min(max(progress, 0.0), 90.0) / 90.0
+    return min(1 - (1 - f) ** 3, 0.999)
+
+
 def compute_eta(db) -> dict:
     now = utcnow().timestamp()
     cutoff = utcnow() - timedelta(seconds=ALIVE_SECONDS)
@@ -86,21 +91,36 @@ def compute_eta(db) -> dict:
     rows = db.execute(
         select(Task.params, Task.started_at, Task.finished_at)
         .where(Task.status == "done", Task.type == "linear", Task.started_at.is_not(None))
-        .order_by(Task.id.desc()).limit(30)
+        .order_by(Task.id.desc()).limit(10)
     ).all()
     ks = sorted(
         (_ts(f) - _ts(s)) / int(p["n"]) ** 3
-        for p, s, f in rows if p and p.get("n") and s and f and _ts(f) > _ts(s)
+        for p, s, f in rows if p and p.get("n") and int(p["n"]) >= 200 and s and f and _ts(f) > _ts(s)
     )
     k = ks[len(ks) // 2] if ks else DEFAULT_K
+
+    running = db.scalars(select(Task).where(Task.status == "running")).all()
+    info, live = {}, []
+    for t in running:
+        n = int((t.params or {}).get("n", 1000))
+        elapsed = now - _ts(t.started_at) if t.started_at else 0.0
+        frac = _time_fraction(t.progress or 0.0)
+        info[t.id] = (n, elapsed, frac)
+        if frac >= 0.05 and elapsed > 0:
+            live.append(elapsed / frac / n ** 3)
+    if live:
+        k = sorted(live)[len(live) // 2]
 
     def est(t: Task) -> float:
         return k * int((t.params or {}).get("n", 1000)) ** 3
 
     remaining, free_at = {}, []
-    for t in db.scalars(select(Task).where(Task.status == "running")):
-        elapsed = now - _ts(t.started_at) if t.started_at else 0.0
-        rem = max(est(t) - elapsed, 1.0)
+    for t in running:
+        n, elapsed, frac = info[t.id]
+        if frac >= 0.05 and elapsed > 0:
+            rem = max(elapsed / frac - elapsed, 1.0)
+        else:
+            rem = max(est(t) - elapsed, 1.0)
         remaining[t.id] = round(rem, 1)
         free_at.append(rem)
     free_at += [0.0] * max(0, slots - len(free_at))

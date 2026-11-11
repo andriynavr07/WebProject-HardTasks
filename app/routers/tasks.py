@@ -13,7 +13,7 @@ from ..services.queue import compute_eta
 
 router = APIRouter(prefix="/api/tasks")
 
-SCALING_WINDOW = 60  # с: скільки "Scale up" видно після події автоскейлера
+SCALING_WINDOW = 60
 
 
 def _iso(dt):
